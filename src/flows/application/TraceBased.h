@@ -19,7 +19,6 @@
  * Author: Telematics Lab <telematics-dev@poliba.it>
  */
 
-
 #ifndef TRACEBASED_H_
 #define TRACEBASED_H_
 
@@ -56,32 +55,31 @@ public:
   } TraceEntry;
 
   void SetTraceFile(string traceFile);
-  void LoadTrace (string traceFile);
-  void LoadInternalTrace(vector<TraceEntry>* trace);
-  void LoadDefaultTrace (void);
+  void LoadTrace(string traceFile);
+  void LoadInternalTrace(vector<TraceEntry> *trace);
+  void LoadDefaultTrace(void);
 
-  virtual void DoStart (void);
-  virtual void DoStop (void);
+  virtual void DoStart(void);
+  virtual void DoStop(void);
 
-  void ScheduleTransmit (double time);
-  void Send (void);
+  void ScheduleTransmit(double time);
+  void Send(void);
 
-  void UpdateFrameCounter (void);
-  int GetFrameCounter (void);
+  void UpdateFrameCounter(void);
+  int GetFrameCounter(void);
 
   void SetBurstSize(int bytes);
   int GetBurstSize(void);
 
-  void PrintTrace (void);
+  void PrintTrace(void);
 
 private:
-
   uint32_t m_TraceSize; //in packet
   double m_interval;
   uint32_t m_size;
   uint32_t m_sent;
 
-  vector<TraceEntry> * m_entries;
+  vector<TraceEntry> *m_entries;
   bool m_is_internal_trace;
   vector<TraceEntry>::iterator iter;
 
@@ -98,4 +96,7 @@ private:
 #include "Trace/trailer_H264_8000k.h"
 #include "Trace/trailer_H264_7000k.h"
 
+#include "Trace/trailer_H264_1000k.h"
+#include "Trace/trailer_H264_3000k.h"
+#include "Trace/trailer_H264_5000k.h"
 #endif /* TRACEBASED_H_ */

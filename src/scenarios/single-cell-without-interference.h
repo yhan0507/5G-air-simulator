@@ -349,6 +349,42 @@ static void SingleCellWithoutInterference(int argc, char *argv[])
         cout << "  selected video @ 440k" << endl;
         break;
       }
+      case 1000:
+      {
+        VideoApplication[videoApplication].LoadInternalTrace(&trailer_h264_1000k);
+        cout << "  selected video @ 1000k" << endl;
+        break;
+      }
+      case 3000:
+      {
+        VideoApplication[videoApplication].LoadInternalTrace(&trailer_h264_3000k);
+        cout << "  selected video @ 3000k" << endl;
+        break;
+      }
+      case 5000:
+      {
+        VideoApplication[videoApplication].LoadInternalTrace(&trailer_h264_5000k);
+        cout << "  selected video @ 5000k" << endl;
+        break;
+      }
+      case 7000:
+      {
+        VideoApplication[videoApplication].LoadInternalTrace(&trailer_h264_7000k);
+        cout << "  selected video @ 7000k" << endl;
+        break;
+      }
+      case 8000:
+      {
+        VideoApplication[videoApplication].LoadInternalTrace(&trailer_h264_8000k);
+        cout << " selected video @ 8000k" << endl;
+        break;
+      }
+      case 17000:
+      {
+        VideoApplication[videoApplication].LoadInternalTrace(&trailer_h264_17000k);
+        cout << " selected video @ 17000k" << endl;
+        break;
+      }
       default:
       {
         cout << "  Unsupported video bitrate!" << endl;
