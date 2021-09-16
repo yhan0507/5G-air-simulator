@@ -20,7 +20,6 @@
  * Author: Sergio Martiradonna <sergio.martiradonna@poliba.it>
  */
 
-
 #include "NetworkNode.h"
 #include "UserEquipment.h"
 #include "GNodeB.h"
@@ -46,533 +45,506 @@
 #include "../protocolStack/mac/harq-manager.h"
 #include "../componentManagers/FrameManager.h"
 #include "../protocolStack/mac/random-access/gnb-random-access.h"
+#include "../protocolStack/mac/packet-scheduler/proposed-downlink-packet-scheduler.h"
 
-GNodeB::GNodeB (int idElement,
-                Cell *cell)
-    : GNodeB::GNodeB (idElement,
-                      cell,
-                      cell->GetCellCenterPosition ()->GetCoordinateX (),
-                      cell->GetCellCenterPosition ()->GetCoordinateY (),
-                      25) // default value for urban macro-cell scenario
-{}
-
-GNodeB::GNodeB (int idElement,
-                Cell *cell,
-                double posx,
-                double posy)
-    : GNodeB::GNodeB (idElement,
-                      cell,
-                      posx,
-                      posy,
-                      25) // default value for urban macro-cell scenario
-{}
-
-GNodeB::GNodeB (int idElement,
-                Cell *cell,
-                double posx,
-                double posy,
-                double posz)
+GNodeB::GNodeB(int idElement,
+               Cell *cell)
+    : GNodeB::GNodeB(idElement,
+                     cell,
+                     cell->GetCellCenterPosition()->GetCoordinateX(),
+                     cell->GetCellCenterPosition()->GetCoordinateY(),
+                     25) // default value for urban macro-cell scenario
 {
-  SetIDNetworkNode (idElement);
+}
+
+GNodeB::GNodeB(int idElement,
+               Cell *cell,
+               double posx,
+               double posy)
+    : GNodeB::GNodeB(idElement,
+                     cell,
+                     posx,
+                     posy,
+                     25) // default value for urban macro-cell scenario
+{
+}
+
+GNodeB::GNodeB(int idElement,
+               Cell *cell,
+               double posx,
+               double posy,
+               double posz)
+{
+  SetIDNetworkNode(idElement);
   SetNodeType(NetworkNode::TYPE_GNODEB);
-  SetCell (cell);
+  SetCell(cell);
 
   CartesianCoordinates *position = new CartesianCoordinates(posx, posy, posz);
-  Mobility* m = new ConstantPosition ();
-  m->SetAbsolutePosition (position);
-  SetMobilityModel (m);
+  Mobility *m = new ConstantPosition();
+  m->SetAbsolutePosition(position);
+  SetMobilityModel(m);
   delete position;
 
   m_userEquipmentRecords = new UserEquipmentRecords;
 
-  GnbPhy *phy = new GnbPhy ();
+  GnbPhy *phy = new GnbPhy();
   phy->SetDevice(this);
-  SetPhy (phy);
+  SetPhy(phy);
 
-  ProtocolStack *stack = new ProtocolStack (this);
-  SetProtocolStack (stack);
+  ProtocolStack *stack = new ProtocolStack(this);
+  SetProtocolStack(stack);
 
-  Classifier *classifier = new Classifier ();
-  classifier->SetDevice (this);
-  SetClassifier (classifier);
+  Classifier *classifier = new Classifier();
+  classifier->SetDevice(this);
+  SetClassifier(classifier);
 }
 
 GNodeB::~GNodeB()
 {
-  Destroy ();
+  Destroy();
   m_userEquipmentRecords->clear();
   delete m_userEquipmentRecords;
 }
 
-void
-GNodeB::RegisterUserEquipment (UserEquipment *UE)
+void GNodeB::RegisterUserEquipment(UserEquipment *UE)
 {
-  UserEquipmentRecord *record = new UserEquipmentRecord (UE);
-  UserEquipmentRecords *UERs = GetUserEquipmentRecords ();
+  UserEquipmentRecord *record = new UserEquipmentRecord(UE);
+  UserEquipmentRecords *UERs = GetUserEquipmentRecords();
   UserEquipmentRecords::iterator it, ins_pos;
   ins_pos = UERs->end();
-  if (UERs->size()>0)
+  if (UERs->size() > 0)
+  {
+    for (it = UERs->end() - 1; it >= UERs->begin(); it--)
     {
-      for (it=UERs->end()-1; it>=UERs->begin(); it--)
-        {
-          // UEs should be inserted before multicast destinations
-          if ( it == UERs->begin() )
-            {
-              ins_pos = it;
-              break;
-            }
-          if ( (*it)->GetUE()->GetNodeType()==NetworkNode::TYPE_MULTICAST_DESTINATION )
-            {
-              ins_pos = it;
-            }
-          else
-            {
-              break;
-            }
-        }
+      // UEs should be inserted before multicast destinations
+      if (it == UERs->begin())
+      {
+        ins_pos = it;
+        break;
+      }
+      if ((*it)->GetUE()->GetNodeType() == NetworkNode::TYPE_MULTICAST_DESTINATION)
+      {
+        ins_pos = it;
+      }
+      else
+      {
+        break;
+      }
     }
+  }
 
-  UERs->insert(ins_pos,record);
-  UE->SetTargetNodeRecord (record);
+  UERs->insert(ins_pos, record);
+  UE->SetTargetNodeRecord(record);
 }
 
-void
-GNodeB::DeleteUserEquipment (UserEquipment *UE)
+void GNodeB::DeleteUserEquipment(UserEquipment *UE)
 {
-  UserEquipmentRecords *new_records = new UserEquipmentRecords ();
+  UserEquipmentRecords *new_records = new UserEquipmentRecords();
 
   for (auto record : *GetUserEquipmentRecords())
+  {
+    if (record->GetUE()->GetIDNetworkNode() != UE->GetIDNetworkNode())
     {
-      if (record->GetUE ()->GetIDNetworkNode () != UE->GetIDNetworkNode ())
-        {
-          //records->erase(iter);
-          //break;
-          new_records->push_back (record);
-        }
-      else
-        {
-          if (UE->GetTargetNodeRecord() == record)
-            {
-              UE->SetTargetNodeRecord (NULL);
-            }
-          delete record;
-        }
+      //records->erase(iter);
+      //break;
+      new_records->push_back(record);
     }
+    else
+    {
+      if (UE->GetTargetNodeRecord() == record)
+      {
+        UE->SetTargetNodeRecord(NULL);
+      }
+      delete record;
+    }
+  }
 
-  m_userEquipmentRecords->clear ();
+  m_userEquipmentRecords->clear();
   delete m_userEquipmentRecords;
   m_userEquipmentRecords = new_records;
 }
 
-int
-GNodeB::GetNbOfUserEquipmentRecords (void)
+int GNodeB::GetNbOfUserEquipmentRecords(void)
 {
-  return GetUserEquipmentRecords ()->size();
+  return GetUserEquipmentRecords()->size();
 }
 
-void
-GNodeB::CreateUserEquipmentRecords (void)
+void GNodeB::CreateUserEquipmentRecords(void)
 {
-  m_userEquipmentRecords = new UserEquipmentRecords ();
+  m_userEquipmentRecords = new UserEquipmentRecords();
 }
 
-void
-GNodeB::DeleteUserEquipmentRecords (void)
+void GNodeB::DeleteUserEquipmentRecords(void)
 {
-  m_userEquipmentRecords->clear ();
+  m_userEquipmentRecords->clear();
   delete m_userEquipmentRecords;
 }
 
-GNodeB::UserEquipmentRecords*
-GNodeB::GetUserEquipmentRecords (void)
+GNodeB::UserEquipmentRecords *
+GNodeB::GetUserEquipmentRecords(void)
 {
   return m_userEquipmentRecords;
 }
 
-GNodeB::UserEquipmentRecord*
-GNodeB::GetUserEquipmentRecord (int idUE)
+GNodeB::UserEquipmentRecord *
+GNodeB::GetUserEquipmentRecord(int idUE)
 {
   for (auto record : *GetUserEquipmentRecords())
+  {
+    if (record->GetUE()->GetIDNetworkNode() == idUE)
     {
-      if (record->GetUE ()->
-          GetIDNetworkNode () == idUE)
-        {
-          return record;
-        }
+      return record;
     }
+  }
   return nullptr;
 }
 
-GnbMacEntity*
+GnbMacEntity *
 GNodeB::GetMacEntity(void) const
 {
-  return (GnbMacEntity*)GetProtocolStack()->GetMacEntity();
+  return (GnbMacEntity *)GetProtocolStack()->GetMacEntity();
 }
 
-GNodeB::UserEquipmentRecord::UserEquipmentRecord ()
+GNodeB::UserEquipmentRecord::UserEquipmentRecord()
 {
   m_UE = nullptr;
   //Create initial CQI values:
   m_cqiAvailable = false;
-  m_cqiFeedback.clear ();
-  m_uplinkChannelStatusIndicator.clear ();
+  m_cqiFeedback.clear();
+  m_uplinkChannelStatusIndicator.clear();
   m_schedulingRequest = 0;
   m_averageSchedulingGrants = 1;
   if (_harq_active_)
-    SetHarqManager (new HarqManager ());
+    SetHarqManager(new HarqManager());
   else
-    SetHarqManager (nullptr);
+    SetHarqManager(nullptr);
 }
 
-GNodeB::UserEquipmentRecord::~UserEquipmentRecord ()
+GNodeB::UserEquipmentRecord::~UserEquipmentRecord()
 {
-  m_cqiFeedback.clear ();
+  m_cqiFeedback.clear();
   m_uplinkChannelStatusIndicator.clear();
   if (m_harqManager != nullptr)
-    {
-      delete m_harqManager;
-    }
+  {
+    delete m_harqManager;
+  }
 }
 
-GNodeB::UserEquipmentRecord::UserEquipmentRecord (UserEquipment *UE)
+GNodeB::UserEquipmentRecord::UserEquipmentRecord(UserEquipment *UE)
 {
   m_UE = UE;
-  BandwidthManager *s = m_UE->GetPhy ()->GetBandwidthManager ();
+  BandwidthManager *s = m_UE->GetPhy()->GetBandwidthManager();
 
-  int nbRbs = (int) s->GetDlSubChannels ().size ();
-  m_cqiFeedback.clear ();
-  for (int i = 0; i < nbRbs; i++ )
-    {
-      m_cqiFeedback.push_back (10);
-    }
+  int nbRbs = (int)s->GetDlSubChannels().size();
+  m_cqiFeedback.clear();
+  for (int i = 0; i < nbRbs; i++)
+  {
+    m_cqiFeedback.push_back(10);
+  }
 
-  nbRbs = (int) s->GetUlSubChannels ().size ();
-  m_uplinkChannelStatusIndicator.clear ();
-  for (int i = 0; i < nbRbs; i++ )
-    {
-      m_uplinkChannelStatusIndicator.push_back (10.);
-    }
+  nbRbs = (int)s->GetUlSubChannels().size();
+  m_uplinkChannelStatusIndicator.clear();
+  for (int i = 0; i < nbRbs; i++)
+  {
+    m_uplinkChannelStatusIndicator.push_back(10.);
+  }
 
   m_schedulingRequest = 0;
   m_averageSchedulingGrants = 1;
-  m_DlTxMode = UE->GetTargetNode()->GetMacEntity ()->GetDefaultDlTxMode ();
-  if (UE->GetNodeType() == NetworkNode::TYPE_MULTICAST_DESTINATION
-      || !_harq_active_)
-    {
-      SetHarqManager (nullptr);
-    }
+  m_DlTxMode = UE->GetTargetNode()->GetMacEntity()->GetDefaultDlTxMode();
+  if (UE->GetNodeType() == NetworkNode::TYPE_MULTICAST_DESTINATION || !_harq_active_)
+  {
+    SetHarqManager(nullptr);
+  }
   else
-    {
-      SetHarqManager (new HarqManager (UE));
-    }
-  if (FrameManager::Init()->MbsfnEnabled()==true && UE->GetNodeType()==NetworkNode::TYPE_MULTICAST_DESTINATION)
-    {
-      m_DlTxMode = 1;
-    }
+  {
+    SetHarqManager(new HarqManager(UE));
+  }
+  if (FrameManager::Init()->MbsfnEnabled() == true && UE->GetNodeType() == NetworkNode::TYPE_MULTICAST_DESTINATION)
+  {
+    m_DlTxMode = 1;
+  }
 }
 
-void
-GNodeB::UserEquipmentRecord::SetUE (UserEquipment *UE)
+void GNodeB::UserEquipmentRecord::SetUE(UserEquipment *UE)
 {
   m_UE = UE;
 }
 
-UserEquipment*
-GNodeB::UserEquipmentRecord::GetUE (void) const
+UserEquipment *
+GNodeB::UserEquipmentRecord::GetUE(void) const
 {
   return m_UE;
 }
 
-bool
-GNodeB::UserEquipmentRecord::CqiAvailable()
+bool GNodeB::UserEquipmentRecord::CqiAvailable()
 {
   return m_cqiAvailable;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetCQI (vector<int> cqi)
+void GNodeB::UserEquipmentRecord::SetCQI(vector<int> cqi)
 {
   m_cqiAvailable = true;
   m_cqiFeedback = cqi;
 }
 
 vector<int>
-GNodeB::UserEquipmentRecord::GetCQI (void) const
+GNodeB::UserEquipmentRecord::GetCQI(void) const
 {
   return m_cqiFeedback;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetRI(int ri)
+void GNodeB::UserEquipmentRecord::SetRI(int ri)
 {
   m_riFeedback = ri;
 }
 
-int
-GNodeB::UserEquipmentRecord::GetRI (void) const
+int GNodeB::UserEquipmentRecord::GetRI(void) const
 {
   return m_riFeedback;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetPMI(vector< vector<int> > pmi)
+void GNodeB::UserEquipmentRecord::SetPMI(vector<vector<int>> pmi)
 {
   m_pmiFeedback = pmi;
 }
 
-vector< vector<int> >
-GNodeB::UserEquipmentRecord::GetPMI (void) const
+vector<vector<int>>
+GNodeB::UserEquipmentRecord::GetPMI(void) const
 {
   return m_pmiFeedback;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetChannelMatrix(vector< shared_ptr<arma::cx_fmat> > channelMatrix)
+void GNodeB::UserEquipmentRecord::SetChannelMatrix(vector<shared_ptr<arma::cx_fmat>> channelMatrix)
 {
   m_channelMatrix = channelMatrix;
 }
 
-vector< shared_ptr<arma::cx_fmat> >
+vector<shared_ptr<arma::cx_fmat>>
 GNodeB::UserEquipmentRecord::GetChannelMatrix(void)
 {
   return m_channelMatrix;
 }
 
-
-void
-GNodeB::UserEquipmentRecord::SetDlTxMode(int txMode)
+void GNodeB::UserEquipmentRecord::SetDlTxMode(int txMode)
 {
   m_DlTxMode = txMode;
 }
 
-int
-GNodeB::UserEquipmentRecord::GetDlTxMode()
+int GNodeB::UserEquipmentRecord::GetDlTxMode()
 {
   return m_DlTxMode;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetHarqManager (HarqManager* harqManager)
+void GNodeB::UserEquipmentRecord::SetHarqManager(HarqManager *harqManager)
 {
   m_harqManager = harqManager;
 }
 
-HarqManager*
-GNodeB::UserEquipmentRecord::GetHarqManager (void)
+HarqManager *
+GNodeB::UserEquipmentRecord::GetHarqManager(void)
 {
   return m_harqManager;
 }
 
-int
-GNodeB::UserEquipmentRecord::GetSchedulingRequest (void)
+int GNodeB::UserEquipmentRecord::GetSchedulingRequest(void)
 {
   return m_schedulingRequest;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetSchedulingRequest (int r)
+void GNodeB::UserEquipmentRecord::SetSchedulingRequest(int r)
 {
   m_schedulingRequest = r;
 }
 
-void
-GNodeB::UserEquipmentRecord::UpdateSchedulingGrants (int b)
+void GNodeB::UserEquipmentRecord::UpdateSchedulingGrants(int b)
 {
   m_averageSchedulingGrants = (0.9 * m_averageSchedulingGrants) + (0.1 * b);
 }
 
-int
-GNodeB::UserEquipmentRecord::GetSchedulingGrants (void)
+int GNodeB::UserEquipmentRecord::GetSchedulingGrants(void)
 {
   return m_averageSchedulingGrants;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetUlMcs (int mcs)
+void GNodeB::UserEquipmentRecord::SetUlMcs(int mcs)
 {
   m_ulMcs = mcs;
 }
 
-int
-GNodeB::UserEquipmentRecord::GetUlMcs (void)
+int GNodeB::UserEquipmentRecord::GetUlMcs(void)
 {
   return m_ulMcs;
 }
 
-void
-GNodeB::UserEquipmentRecord::SetUplinkChannelStatusIndicator (vector<double> vet)
+void GNodeB::UserEquipmentRecord::SetUplinkChannelStatusIndicator(vector<double> vet)
 {
   m_uplinkChannelStatusIndicator = vet;
 }
 
 vector<double>
-GNodeB::UserEquipmentRecord::GetUplinkChannelStatusIndicator (void) const
+GNodeB::UserEquipmentRecord::GetUplinkChannelStatusIndicator(void) const
 {
   return m_uplinkChannelStatusIndicator;
 }
 
-void
-GNodeB::SetDLScheduler (GNodeB::DLSchedulerType type)
+void GNodeB::SetDLScheduler(GNodeB::DLSchedulerType type)
 {
-  GnbMacEntity *mac = GetMacEntity ();
+  GnbMacEntity *mac = GetMacEntity();
   DownlinkPacketScheduler *scheduler;
   switch (type)
-    {
-    case GNodeB::DLScheduler_TYPE_PROPORTIONAL_FAIR:
-      scheduler = new  DL_PF_PacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  {
+  case GNodeB::DLScheduler_TYPE_PROPORTIONAL_FAIR:
+    scheduler = new DL_PF_PacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    case GNodeB::DLScheduler_TYPE_FLS:
-      scheduler = new  DL_FLS_PacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  case GNodeB::DLScheduler_TYPE_FLS:
+    scheduler = new DL_FLS_PacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    case GNodeB::DLScheduler_TYPE_EXP:
-      scheduler = new  DL_EXP_PacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  case GNodeB::DLScheduler_TYPE_EXP:
+    scheduler = new DL_EXP_PacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    case GNodeB::DLScheduler_TYPE_MLWDF:
-      scheduler = new  DL_MLWDF_PacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  case GNodeB::DLScheduler_TYPE_MLWDF:
+    scheduler = new DL_MLWDF_PacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    case GNodeB::DLScheduler_EXP_RULE:
-      scheduler = new  ExpRuleDownlinkPacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  case GNodeB::DLScheduler_EXP_RULE:
+    scheduler = new ExpRuleDownlinkPacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    case GNodeB::DLScheduler_LOG_RULE:
-      scheduler = new  LogRuleDownlinkPacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  case GNodeB::DLScheduler_LOG_RULE:
+    scheduler = new LogRuleDownlinkPacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    case GNodeB::DLScheduler_TYPE_MAXIMUM_THROUGHPUT:
-      scheduler = new  DL_MT_PacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  case GNodeB::DLScheduler_TYPE_MAXIMUM_THROUGHPUT:
+    scheduler = new DL_MT_PacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    case GNodeB::DLScheduler_TYPE_ROUND_ROBIN:
-      scheduler = new  DL_RR_PacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetDownlinkPacketScheduler (scheduler);
-      break;
+  case GNodeB::DLScheduler_TYPE_ROUND_ROBIN:
+    scheduler = new DL_RR_PacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
 
-    default:
-      cout << "ERROR: invalid scheduler type" << endl;
-      exit(1);
-      break;
-    }
+  case GNodeB::DLScheduler_PROPOSED:
+    scheduler = new PROPOSEDDownlinkPacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetDownlinkPacketScheduler(scheduler);
+    break;
+
+  default:
+    cout << "ERROR: invalid scheduler type" << endl;
+    exit(1);
+    break;
+  }
 }
 
-DownlinkPacketScheduler*
-GNodeB::GetDLScheduler (void) const
+DownlinkPacketScheduler *
+GNodeB::GetDLScheduler(void) const
 {
-  return GetMacEntity ()->GetDownlinkPacketScheduler ();
+  return GetMacEntity()->GetDownlinkPacketScheduler();
 }
 
-void
-GNodeB::SetULScheduler (ULSchedulerType type)
+void GNodeB::SetULScheduler(ULSchedulerType type)
 {
-  GnbMacEntity *mac = GetMacEntity ();
+  GnbMacEntity *mac = GetMacEntity();
   UplinkPacketScheduler *scheduler;
   switch (type)
-    {
-    case GNodeB::ULScheduler_TYPE_MAXIMUM_THROUGHPUT:
-      scheduler = new MaximumThroughputUplinkPacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetUplinkPacketScheduler (scheduler);
-      break;
-    case GNodeB::ULScheduler_TYPE_FME:
-      scheduler = new EnhancedUplinkPacketScheduler();
-      scheduler->SetMacEntity (mac);
-      mac->SetUplinkPacketScheduler (scheduler);
-      break;
-    case GNodeB::ULScheduler_TYPE_ROUNDROBIN:
-      scheduler = new RoundRobinUplinkPacketScheduler ();
-      scheduler->SetMacEntity (mac);
-      mac->SetUplinkPacketScheduler (scheduler);
-      break;
-    case GNodeB::ULScheduler_TYPE_NB_IOT_FIFO:
-      scheduler = new nbFifoUplinkPacketScheduler (mac);
-      mac->SetUplinkPacketScheduler (scheduler);
-      break;
-    case GNodeB::ULScheduler_TYPE_NB_IOT_ROUNDROBIN:
-      scheduler = new nbRoundRobinUplinkPacketScheduler (mac);
-      mac->SetUplinkPacketScheduler (scheduler);
-      break;
+  {
+  case GNodeB::ULScheduler_TYPE_MAXIMUM_THROUGHPUT:
+    scheduler = new MaximumThroughputUplinkPacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetUplinkPacketScheduler(scheduler);
+    break;
+  case GNodeB::ULScheduler_TYPE_FME:
+    scheduler = new EnhancedUplinkPacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetUplinkPacketScheduler(scheduler);
+    break;
+  case GNodeB::ULScheduler_TYPE_ROUNDROBIN:
+    scheduler = new RoundRobinUplinkPacketScheduler();
+    scheduler->SetMacEntity(mac);
+    mac->SetUplinkPacketScheduler(scheduler);
+    break;
+  case GNodeB::ULScheduler_TYPE_NB_IOT_FIFO:
+    scheduler = new nbFifoUplinkPacketScheduler(mac);
+    mac->SetUplinkPacketScheduler(scheduler);
+    break;
+  case GNodeB::ULScheduler_TYPE_NB_IOT_ROUNDROBIN:
+    scheduler = new nbRoundRobinUplinkPacketScheduler(mac);
+    mac->SetUplinkPacketScheduler(scheduler);
+    break;
 
-    default:
-      cout << "ERROR: invalid scheduler type" << endl;
-      exit(1);
-    }
+  default:
+    cout << "ERROR: invalid scheduler type" << endl;
+    exit(1);
+  }
 }
 
-UplinkPacketScheduler*
-GNodeB::GetULScheduler (void) const
+UplinkPacketScheduler *
+GNodeB::GetULScheduler(void) const
 {
-  return GetMacEntity ()->GetUplinkPacketScheduler ();
+  return GetMacEntity()->GetUplinkPacketScheduler();
 }
 
-void
-GNodeB::ResourceBlocksAllocation (void)
+void GNodeB::ResourceBlocksAllocation(void)
 {
-  DownlinkResourceBlockAllocation ();
-  UplinkResourceBlockAllocation ();
+  DownlinkResourceBlockAllocation();
+  UplinkResourceBlockAllocation();
 }
 
-void
-GNodeB::UplinkResourceBlockAllocation (void)
+void GNodeB::UplinkResourceBlockAllocation(void)
 {
-  if (GetULScheduler () != nullptr && GetNbOfUserEquipmentRecords () > 0)
-    {
-      GetULScheduler ()->Schedule();
-    }
+  if (GetULScheduler() != nullptr && GetNbOfUserEquipmentRecords() > 0)
+  {
+    GetULScheduler()->Schedule();
+  }
 }
 
-void
-GNodeB::DownlinkResourceBlockAllocation (void)
+void GNodeB::DownlinkResourceBlockAllocation(void)
 {
-  if (GetDLScheduler () != nullptr && GetNbOfUserEquipmentRecords () > 0)
-    {
-      GetDLScheduler ()->Schedule();
-    }
+  if (GetDLScheduler() != nullptr && GetNbOfUserEquipmentRecords() > 0)
+  {
+    GetDLScheduler()->Schedule();
+  }
   else
-    {
-      //send only reference symbols
-      //PacketBurst *pb = new PacketBurst ();
-      //SendPacketBurst (pb);
-    }
+  {
+    //send only reference symbols
+    //PacketBurst *pb = new PacketBurst ();
+    //SendPacketBurst (pb);
+  }
 }
 
-void
-GNodeB::SetRandomAccessType(GnbRandomAccess::RandomAccessType type)
+void GNodeB::SetRandomAccessType(GnbRandomAccess::RandomAccessType type)
 {
-  GetMacEntity ()->SetRandomAccessType(type);
+  GetMacEntity()->SetRandomAccessType(type);
 }
-
 
 //Debug
-void
-GNodeB::Print (void)
+void GNodeB::Print(void)
 {
   cout << " GNodeB object:"
-            "\n\t m_idNetworkNode = " << GetIDNetworkNode () <<
-            "\n\t m_idCell = " << GetCell ()->GetIdCell () <<
-            "\n\t Served Users: " <<
-            endl;
+          "\n\t m_idNetworkNode = "
+       << GetIDNetworkNode() << "\n\t m_idCell = " << GetCell()->GetIdCell() << "\n\t Served Users: " << endl;
 
   for (auto record : *GetUserEquipmentRecords())
-    {
-      cout << "\t\t idUE = " << record->GetUE ()->
-                GetIDNetworkNode () << endl;
-    }
+  {
+    cout << "\t\t idUE = " << record->GetUE()->GetIDNetworkNode() << endl;
+  }
 }

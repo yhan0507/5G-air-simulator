@@ -20,7 +20,6 @@
  * Author: Alessandro Grassi <alessandro.grassi@poliba.it>
  */
 
-
 #ifndef GNODEB_H_
 #define GNODEB_H_
 
@@ -40,59 +39,59 @@ class GNodeB : public NetworkNode
 public:
   struct UserEquipmentRecord
   {
-    UserEquipmentRecord ();
-    virtual ~UserEquipmentRecord ();
-    UserEquipmentRecord (UserEquipment *UE);
+    UserEquipmentRecord();
+    virtual ~UserEquipmentRecord();
+    UserEquipmentRecord(UserEquipment *UE);
 
     UserEquipment *m_UE;
-    void SetUE (UserEquipment *UE);
-    UserEquipment* GetUE (void) const;
+    void SetUE(UserEquipment *UE);
+    UserEquipment *GetUE(void) const;
 
     bool m_cqiAvailable;
     bool CqiAvailable(void);
 
     vector<int> m_cqiFeedback;
-    void SetCQI (vector<int> cqi);
-    vector<int> GetCQI (void) const;
+    void SetCQI(vector<int> cqi);
+    vector<int> GetCQI(void) const;
 
     int m_riFeedback;
     void SetRI(int ri);
-    int GetRI (void) const;
+    int GetRI(void) const;
 
-    vector< shared_ptr<arma::cx_fmat> > m_channelMatrix;
-    void SetChannelMatrix(vector< shared_ptr<arma::cx_fmat> > channelMatrix);
-    vector< shared_ptr<arma::cx_fmat> > GetChannelMatrix(void);
+    vector<shared_ptr<arma::cx_fmat>> m_channelMatrix;
+    void SetChannelMatrix(vector<shared_ptr<arma::cx_fmat>> channelMatrix);
+    vector<shared_ptr<arma::cx_fmat>> GetChannelMatrix(void);
 
-    vector< vector<int> > m_pmiFeedback;
-    void SetPMI (vector< vector<int> > pmi);
-    vector< vector<int> > GetPMI (void) const;
+    vector<vector<int>> m_pmiFeedback;
+    void SetPMI(vector<vector<int>> pmi);
+    vector<vector<int>> GetPMI(void) const;
 
     int m_schedulingRequest; // in bytes
-    void SetSchedulingRequest (int r);
-    int GetSchedulingRequest (void);
+    void SetSchedulingRequest(int r);
+    int GetSchedulingRequest(void);
 
     int m_averageSchedulingGrants; // in bytes
-    void UpdateSchedulingGrants (int b);
-    int GetSchedulingGrants (void);
+    void UpdateSchedulingGrants(int b);
+    int GetSchedulingGrants(void);
 
     int m_ulMcs;
-    void SetUlMcs (int mcs);
-    int GetUlMcs (void);
+    void SetUlMcs(int mcs);
+    int GetUlMcs(void);
 
     vector<double> m_uplinkChannelStatusIndicator;
-    void SetUplinkChannelStatusIndicator (vector<double> vet);
-    vector<double> GetUplinkChannelStatusIndicator (void) const;
+    void SetUplinkChannelStatusIndicator(vector<double> vet);
+    vector<double> GetUplinkChannelStatusIndicator(void) const;
 
     int m_DlTxMode;
     void SetDlTxMode(int txMode);
     int GetDlTxMode();
 
-    HarqManager* m_harqManager;
-    void SetHarqManager (HarqManager* harqManager);
-    HarqManager* GetHarqManager (void);
+    HarqManager *m_harqManager;
+    void SetHarqManager(HarqManager *harqManager);
+    HarqManager *GetHarqManager(void);
   };
 
-  typedef vector<UserEquipmentRecord*> UserEquipmentRecords;
+  typedef vector<UserEquipmentRecord *> UserEquipmentRecords;
 
   enum DLSchedulerType
   {
@@ -103,7 +102,8 @@ public:
     DLScheduler_TYPE_EXP,
     DLScheduler_LOG_RULE,
     DLScheduler_EXP_RULE,
-    DLScheduler_TYPE_ROUND_ROBIN
+    DLScheduler_TYPE_ROUND_ROBIN,
+    DLScheduler_PROPOSED
   };
   enum ULSchedulerType
   {
@@ -114,34 +114,34 @@ public:
     ULScheduler_TYPE_NB_IOT_ROUNDROBIN
   };
 
-  GNodeB () = default;
-  GNodeB (int idElement, Cell *cell);
-  GNodeB (int idElement, Cell *cell, double posx, double posy);
-  GNodeB (int idElement, Cell *cell, double posx, double posy, double posz);
+  GNodeB() = default;
+  GNodeB(int idElement, Cell *cell);
+  GNodeB(int idElement, Cell *cell, double posx, double posy);
+  GNodeB(int idElement, Cell *cell, double posx, double posy, double posz);
 
   virtual ~GNodeB();
 
   void SetRandomAccessType(GnbRandomAccess::RandomAccessType type);
-  void RegisterUserEquipment (UserEquipment *UE);
-  void DeleteUserEquipment (UserEquipment *UE);
-  int GetNbOfUserEquipmentRecords (void);
-  void CreateUserEquipmentRecords (void);
-  void DeleteUserEquipmentRecords (void);
-  UserEquipmentRecords* GetUserEquipmentRecords (void);
-  UserEquipmentRecord* GetUserEquipmentRecord (int idUE);
-  GnbMacEntity* GetMacEntity(void) const;
+  void RegisterUserEquipment(UserEquipment *UE);
+  void DeleteUserEquipment(UserEquipment *UE);
+  int GetNbOfUserEquipmentRecords(void);
+  void CreateUserEquipmentRecords(void);
+  void DeleteUserEquipmentRecords(void);
+  UserEquipmentRecords *GetUserEquipmentRecords(void);
+  UserEquipmentRecord *GetUserEquipmentRecord(int idUE);
+  GnbMacEntity *GetMacEntity(void) const;
 
-  void SetDLScheduler (DLSchedulerType type);
-  DownlinkPacketScheduler* GetDLScheduler (void) const;
-  void SetULScheduler (ULSchedulerType type);
-  UplinkPacketScheduler* GetULScheduler (void) const;
+  void SetDLScheduler(DLSchedulerType type);
+  DownlinkPacketScheduler *GetDLScheduler(void) const;
+  void SetULScheduler(ULSchedulerType type);
+  UplinkPacketScheduler *GetULScheduler(void) const;
 
-  void ResourceBlocksAllocation ();
-  void UplinkResourceBlockAllocation ();
-  void DownlinkResourceBlockAllocation ();
+  void ResourceBlocksAllocation();
+  void UplinkResourceBlockAllocation();
+  void DownlinkResourceBlockAllocation();
 
   //Debug
-  void Print (void);
+  void Print(void);
 
 private:
   UserEquipmentRecords *m_userEquipmentRecords;
