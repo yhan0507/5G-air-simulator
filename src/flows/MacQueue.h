@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright (c) 2020 TELEMATICS LAB, Politecnico di Bari
+* Copyright (c) 2020 TELEMATICS LAB, Politecnico di Bari
  *
  * This file is part of 5G-air-simulator
  *
