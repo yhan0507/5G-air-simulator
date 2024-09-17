@@ -1,26 +1,3 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2020 TELEMATICS LAB, Politecnico di Bari
- *
- * This file is part of 5G-air-simulator
- *
- * 5G-air-simulator is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 3 as
- * published by the Free Software Foundation;
- *
- * 5G-air-simulator is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with 5G-air-simulator; if not, see <http://www.gnu.org/licenses/>.
- *
- * Author: Telematics Lab <telematics-dev@poliba.it>
- * Author: Sergio Martiradonna <sergio.martiradonna@poliba.it>
- */
-
-
 #include "MacQueue.h"
 #include "../device/NetworkNode.h"
 #include "../componentManagers/NetworkManager.h"
@@ -28,193 +5,196 @@
 #include "../load-parameters.h"
 #include <iostream>
 
-
 MacQueue::MacQueue()
 {
-  m_maxSize = 0; //XXX NOT IMPLEMENTED
+  m_maxSize = 0; // XXX NOT IMPLEMENTED
   m_queueSize = 0;
   m_nbDataPackets = 0;
-  m_queue = new PacketQueue ();
+  m_queue = new PacketQueue();
+  m_agent = new ApplicationAgent();  // 初始化 ApplicationAgent
 }
 
 MacQueue::~MacQueue()
 {
-  m_queue->clear ();
+  m_queue->clear();
   delete m_queue;
+  delete m_agent;  // 釋放 ApplicationAgent
 }
 
 void
-MacQueue::SetMaxSize (int maxSize)
+MacQueue::SetMaxSize(int maxSize)
 {
   m_maxSize = maxSize;
 }
 
 int
-MacQueue::GetMaxSize (void) const
+MacQueue::GetMaxSize(void) const
 {
   return m_maxSize;
 }
 
 void
-MacQueue::SetQueueSize (int size)
+MacQueue::SetQueueSize(int size)
 {
   m_queueSize = size;
 }
 
 void
-MacQueue::UpdateQueueSize (int packetSize)
+MacQueue::UpdateQueueSize(int packetSize)
 {
   m_queueSize += packetSize;
 }
 
 void
-MacQueue::UpdateNbDataPackets (void)
+MacQueue::UpdateNbDataPackets(void)
 {
-  m_nbDataPackets +=1;
+  m_nbDataPackets += 1;
 }
 
 int
-MacQueue::GetNbDataPackets (void) const
+MacQueue::GetNbDataPackets(void) const
 {
   return m_nbDataPackets;
 }
 
 int
-MacQueue::GetQueueSize (void) const
+MacQueue::GetQueueSize(void) const
 {
   return m_queueSize;
 }
 
 int
-MacQueue::GetQueueSizeWithMACHoverhead (void) const
+MacQueue::GetQueueSizeWithMACHoverhead(void) const
 {
-  //we should consider the overhead due to RLC (2 bytes) and MAC (3 bytes) headers and CRC (3 bytes)
-  return (GetQueueSize () + (GetNbDataPackets () * 8));
+  // we should consider the overhead due to RLC (2 bytes) and MAC (3 bytes) headers and CRC (3 bytes)
+  return (GetQueueSize() + (GetNbDataPackets() * 8));
 }
 
 MacQueue::PacketQueue*
-MacQueue::GetPacketQueue (void) const
+MacQueue::GetPacketQueue(void) const
 {
   return m_queue;
 }
 
 bool
-MacQueue::Enqueue (Packet *packet)
+MacQueue::Enqueue(Packet *packet)
 {
-  QueueElement element (packet);
-  GetPacketQueue ()->push_back(element);
+  QueueElement element(packet);
+  GetPacketQueue()->push_back(element);
 
-  UpdateQueueSize (element.GetSize ());
-  UpdateNbDataPackets ();
+  UpdateQueueSize(element.GetSize());
+  UpdateNbDataPackets();
+
+  // 將封包依據應用類型傳遞給 Agent
+  ApplicationAgent::ApplicationType appType = m_agent->DetermineApplicationType(packet);
+  m_agent->EnqueuePacket(packet, appType);  // 傳給 agent 進行分類
 
   return true;
 }
 
 Packet*
-MacQueue::GetPacketToTramsit (int availableBytes)
+MacQueue::GetPacketToTramsit(int availableBytes)
 {
-DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
-  cout << " MAC_DEBUG: Dequeue(), availableBytes = " <<
-            availableBytes << endl;
-DEBUG_LOG_END
+  DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
+  std::cout << " MAC_DEBUG: Dequeue(), availableBytes = " <<
+            availableBytes << std::endl;
+  DEBUG_LOG_END
 
-
-  int overhead = 8; //RLC + MAC + CRC overhead
-  if (IsEmpty () || overhead >= availableBytes)
-    {
-      return nullptr;
-    }
-
+  int overhead = 8; // RLC + MAC + CRC overhead
+  if (IsEmpty() || overhead >= availableBytes)
+  {
+    return nullptr;
+  }
 
   QueueElement element = Peek();
 
-  RLCHeader *rlcHeader = new RLCHeader ();
+  RLCHeader *rlcHeader = new RLCHeader();
 
   int dataToSend;
   int fragmentSize = 0;
 
   if (element.GetFragmentation())
-    {
-DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
-      cout << " MAC_DEBUG: the packet is a fragment" <<  endl;
-DEBUG_LOG_END
-      dataToSend = element.GetSize() - element.GetFragmentOffset ();
-      rlcHeader->SetAFragment(true);
-      rlcHeader->SetTheLatestFragment (true);
-      rlcHeader->SetStartByte (element.GetFragmentOffset ());
-    }
+  {
+    DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
+    std::cout << " MAC_DEBUG: the packet is a fragment" << std::endl;
+    DEBUG_LOG_END
+    dataToSend = element.GetSize() - element.GetFragmentOffset();
+    rlcHeader->SetAFragment(true);
+    rlcHeader->SetTheLatestFragment(true);
+    rlcHeader->SetStartByte(element.GetFragmentOffset());
+  }
   else
-    {
-DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
-      cout << " MAC_DEBUG: the packet is NOT a fragment" <<  endl;
-DEBUG_LOG_END
-      dataToSend = element.GetSize ();
-      rlcHeader->SetStartByte (0);
-    }
+  {
+    DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
+    std::cout << " MAC_DEBUG: the packet is NOT a fragment" << std::endl;
+    DEBUG_LOG_END
+    dataToSend = element.GetSize();
+    rlcHeader->SetStartByte(0);
+  }
 
-  //Packet to transmit
-  Packet *packet = GetPacketQueue ()->begin ()->GetPacket ()->Copy();
+  // Packet to transmit
+  Packet *packet = GetPacketQueue()->begin()->GetPacket()->Copy();
 
-  //CASE 1 --> PACKET FRAGMENTATION
-  if(dataToSend + overhead > availableBytes)
-    {
-      fragmentSize = availableBytes - overhead;
-      packet->SetSize(fragmentSize);
+  // CASE 1 --> PACKET FRAGMENTATION
+  if (dataToSend + overhead > availableBytes)
+  {
+    fragmentSize = availableBytes - overhead;
+    packet->SetSize(fragmentSize);
 
-      GetPacketQueue ()->begin ()->SetFragmentOffset (fragmentSize);
-      GetPacketQueue ()->begin ()->SetFragmentation (true);
-      GetPacketQueue ()->begin ()->SetFragmentNumber (element.GetFragmentNumber () + 1);
+    GetPacketQueue()->begin()->SetFragmentOffset(fragmentSize);
+    GetPacketQueue()->begin()->SetFragmentation(true);
+    GetPacketQueue()->begin()->SetFragmentNumber(element.GetFragmentNumber() + 1);
 
-      rlcHeader->SetAFragment (true);
-      rlcHeader->SetTheLatestFragment (false);
-      rlcHeader->SetFragmentNumber (element.GetFragmentNumber ());
-      rlcHeader->SetEndByte (rlcHeader->GetStartByte () + fragmentSize - 1);
+    rlcHeader->SetAFragment(true);
+    rlcHeader->SetTheLatestFragment(false);
+    rlcHeader->SetFragmentNumber(element.GetFragmentNumber());
+    rlcHeader->SetEndByte(rlcHeader->GetStartByte() + fragmentSize - 1);
 
-      UpdateQueueSize (-fragmentSize);
-    }
+    UpdateQueueSize(-fragmentSize);
+  }
   // CASE 2 -> NO other PACKET FRAGMENTATION
   else
-    {
-      rlcHeader->SetFragmentNumber (element.GetFragmentNumber ());
-      rlcHeader->SetEndByte (element.GetSize () - 1);
-      Dequeue ();
-      UpdateQueueSize (-dataToSend);
-      packet->SetSize(dataToSend);
-    }
+  {
+    rlcHeader->SetFragmentNumber(element.GetFragmentNumber());
+    rlcHeader->SetEndByte(element.GetSize() - 1);
+    Dequeue();
+    UpdateQueueSize(-dataToSend);
+    packet->SetSize(dataToSend);
+  }
 
-DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
-  cout << "\t packetSize = " << element.GetSize () <<
+  DEBUG_LOG_START_1(SIM_ENV_MAC_QUEUE_DEBUG)
+  std::cout << "\t packetSize = " << element.GetSize() <<
             "\n\t dataToSend = " << dataToSend <<
             "\n\t fragmentSize = " << fragmentSize <<
-            "\n\t fragmentOffset = "<< GetPacketQueue ()->front().GetFragmentOffset ()
-            << endl;
-DEBUG_LOG_END
+            "\n\t fragmentOffset = " << GetPacketQueue()->front().GetFragmentOffset()
+            << std::endl;
+  DEBUG_LOG_END
 
   packet->AddRLCHeader(rlcHeader);
   return packet;
 }
 
 void
-MacQueue::Dequeue ()
+MacQueue::Dequeue()
 {
-  GetPacketQueue ()->pop_front();
+  GetPacketQueue()->pop_front();
   m_nbDataPackets -= 1;
 }
 
 MacQueue::QueueElement
-MacQueue::Peek (void) const
+MacQueue::Peek(void) const
 {
-  MacQueue::QueueElement element = *GetPacketQueue ()->begin ();
+  MacQueue::QueueElement element = *GetPacketQueue()->begin();
   return element;
 }
 
 bool
-MacQueue::IsEmpty (void) const
+MacQueue::IsEmpty(void) const
 {
-  return GetPacketQueue ()->empty ();
+  return GetPacketQueue()->empty();
 }
 
-MacQueue::QueueElement::QueueElement (void)
+MacQueue::QueueElement::QueueElement(void)
 {
   m_packet = nullptr;
   m_fragmentation = false;
@@ -224,8 +204,8 @@ MacQueue::QueueElement::QueueElement (void)
   m_tempFragmentOffset = 0;
 }
 
-MacQueue::QueueElement::QueueElement (Packet *packet)
-    : MacQueue::QueueElement::QueueElement ()
+MacQueue::QueueElement::QueueElement(Packet *packet)
+    : MacQueue::QueueElement::QueueElement()
 {
   m_packet = packet;
 }
@@ -242,7 +222,7 @@ MacQueue::QueueElement::operator= (const MacQueue::QueueElement &obj)
   return *this;
 }
 
-MacQueue::QueueElement::QueueElement (const MacQueue::QueueElement &obj)
+MacQueue::QueueElement::QueueElement(const MacQueue::QueueElement &obj)
 {
   m_packet = obj.m_packet->Copy();
   m_fragmentation = obj.m_fragmentation;
@@ -264,19 +244,19 @@ MacQueue::QueueElement::GetPacket(void)
 }
 
 int
-MacQueue::QueueElement::GetSize (void) const
+MacQueue::QueueElement::GetSize(void) const
 {
-  return m_packet->GetSize ();
+  return m_packet->GetSize();
 }
 
 double
 MacQueue::QueueElement::GetTimeStamp(void) const
 {
-  return m_packet->GetTimeStamp ();
+  return m_packet->GetTimeStamp();
 }
 
 void
-MacQueue::QueueElement::SetFragmentation (bool flag)
+MacQueue::QueueElement::SetFragmentation(bool flag)
 {
   m_fragmentation = flag;
 }
@@ -288,151 +268,145 @@ MacQueue::QueueElement::GetFragmentation(void) const
 }
 
 void
-MacQueue::QueueElement::SetFragmentNumber (int fragmentNumber)
+MacQueue::QueueElement::SetFragmentNumber(int fragmentNumber)
 {
   m_fragmentNumber = fragmentNumber;
 }
 
 int
-MacQueue::QueueElement::GetFragmentNumber (void) const
+MacQueue::QueueElement::GetFragmentNumber(void) const
 {
   return m_fragmentNumber;
 }
 
 void
-MacQueue::QueueElement::SetFragmentOffset (int fragmentOffset)
+MacQueue::QueueElement::SetFragmentOffset(int fragmentOffset)
 {
   m_fragmentOffset += fragmentOffset;
 }
 
 int
-MacQueue::QueueElement::GetFragmentOffset (void) const
+MacQueue::QueueElement::GetFragmentOffset(void) const
 {
   return m_fragmentOffset;
 }
 
 void
-MacQueue::QueueElement::SetTempFragmentNumber (int fragmentNumber)
+MacQueue::QueueElement::SetTempFragmentNumber(int fragmentNumber)
 {
   m_tempFragmentNumber = fragmentNumber;
 }
 
 int
-MacQueue::QueueElement::GetTempFragmentNumber (void) const
+MacQueue::QueueElement::GetTempFragmentNumber(void) const
 {
   return m_tempFragmentNumber;
 }
 
 void
-MacQueue::QueueElement::SetTempFragmentOffset (int fragmentOffset)
+MacQueue::QueueElement::SetTempFragmentOffset(int fragmentOffset)
 {
   m_tempFragmentOffset += fragmentOffset;
 }
 
 int
-MacQueue::QueueElement::GetTempFragmentOffset (void) const
+MacQueue::QueueElement::GetTempFragmentOffset(void) const
 {
   return m_tempFragmentOffset;
 }
 
 void
-MacQueue::ModifyPacketSourceID (int id)
+MacQueue::ModifyPacketSourceID(int id)
 {
   for (auto queueElement : *GetPacketQueue())
-    {
-      queueElement.GetPacket ()->GetIPHeader ()->SetSourceID (id);
-    }
+  {
+    queueElement.GetPacket()->GetIPHeader()->SetSourceID(id);
+  }
 }
 
 void
-MacQueue::CheckForDropPackets (double maxDelay,
-                               int bearerID)
+MacQueue::CheckForDropPackets(double maxDelay, int bearerID)
 {
   double now = Simulator::Init()->Now();
 
   while (true && GetPacketQueue()->size() > 0)
+  {
+    double headOfLineDelay = now - GetPacketQueue()->begin()->GetTimeStamp();
+
+    if (headOfLineDelay > maxDelay)
     {
-      double headOfLineDelay = now - GetPacketQueue ()->begin ()->GetTimeStamp();
-      /*
-          cout << "queue "<< bearerID <<
-              " maxDelay " << maxDelay <<
-              " HOL " << headOfLineDelay <<
-              " size "<< GetPacketQueue ()->begin ()->GetSize()
-              <<  endl;
-      */
+      if (_MAC_TRACING_)
+      {
+        std::cout << "DROP_QUEUE";
+        if (GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_VOIP)
+          std::cout << " VOIP";
+        else if (GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_TRACE_BASED)
+          std::cout << " VIDEO";
+        else if (GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_CBR)
+          std::cout << " CBR";
+        else if (GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_INFINITE_BUFFER)
+          std::cout << " INF_BUF";
+        else
+          std::cout << " UNKNOW";
 
-      if (headOfLineDelay > maxDelay)
+        std::cout << " ID " << GetPacketQueue()->begin()->GetPacket()->GetID()
+                  << " B " << bearerID;
+
+        if (GetPacketQueue()->begin()->GetPacket()->GetPacketTags() != nullptr
+            && GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetApplicationType() ==
+            PacketTAGs::APPLICATION_TYPE_TRACE_BASED)
         {
-
-          if (_MAC_TRACING_)
-            {
-              /*
-               * TRACE
-               */
-              cout << "DROP_QUEUE";
-              if (GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_VOIP)
-                cout << " VOIP";
-              else if (GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_TRACE_BASED)
-                cout << " VIDEO";
-              else if (GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_CBR)
-                cout << " CBR";
-              else if (GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetApplicationType() == PacketTAGs::APPLICATION_TYPE_INFINITE_BUFFER)
-                cout << " INF_BUF";
-              else
-                cout << " UNKNOW";
-
-              cout << " ID "<< GetPacketQueue ()->begin ()->GetPacket()->GetID()
-                        << " B " << bearerID;
-
-              if (GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags() != nullptr
-                  && GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetApplicationType() ==
-                  PacketTAGs::APPLICATION_TYPE_TRACE_BASED)
-                {
-                  cout << " FRAME " <<  GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetFrameNuber()
-                            << " START " << GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetStartByte()
-                            << " END " << GetPacketQueue ()->begin ()->GetPacket()->GetPacketTags()->GetEndByte();
-                }
-              cout  <<  endl;
-            }
-
-          int size = GetPacketQueue ()->begin ()->GetSize() - GetPacketQueue ()->begin ()->GetFragmentOffset();
-          UpdateQueueSize (-size);
-          Dequeue ();
+          std::cout << " FRAME " << GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetFrameNuber()
+                    << " START " << GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetStartByte()
+                    << " END " << GetPacketQueue()->begin()->GetPacket()->GetPacketTags()->GetEndByte();
         }
-      else
-        {
-          break;
-        }
+        std::cout << std::endl;
+      }
+
+      int size = GetPacketQueue()->begin()->GetSize() - GetPacketQueue()->begin()->GetFragmentOffset();
+      UpdateQueueSize(-size);
+      Dequeue();
     }
+    else
+    {
+      break;
+    }
+  }
 }
 
-
 void
-MacQueue::PrintQueueInfo (void)
+MacQueue::PrintQueueInfo(void)
 {
-  cout << "\t ** queue info: "
-            "\n\t ** total size = " << GetQueueSize ()
-            << " packets = " << GetNbDataPackets () << endl;
+  std::cout << "\t ** queue info: "
+            "\n\t ** total size = " << GetQueueSize()
+            << " packets = " << GetNbDataPackets() << std::endl;
 
   for (auto queueElement : *GetPacketQueue())
-    {
-      cout << "\t ** pkt --> "
-                 " size  " << queueElement.GetSize ()
-                 << " offset " << queueElement.GetFragmentOffset ()
-                 << endl;
-    }
+  {
+    std::cout << "\t ** pkt --> "
+              " size  " << queueElement.GetSize()
+              << " offset " << queueElement.GetFragmentOffset()
+              << std::endl;
+  }
 }
 
 int
-MacQueue::GetByte (int byte)
+MacQueue::GetByte(int byte)
 {
-  int maxData= 0;
+  int maxData = 0;
 
   for (auto queueElement : *GetPacketQueue())
-    {
-      maxData += queueElement.GetPacket ()->GetSize () - queueElement.GetFragmentOffset () + 8;
-      if (maxData >= byte) return maxData;
-    }
+  {
+    maxData += queueElement.GetPacket()->GetSize() - queueElement.GetFragmentOffset() + 8;
+    if (maxData >= byte) return maxData;
+  }
 
   return maxData;
+}
+
+int
+MacQueue::CalculateTotalRBs()
+{
+  // 假設 ApplicationAgent 提供的方法來計算資源塊
+  return m_agent->CalculateTotalRBs(GetPacketQueue());
 }
